@@ -1,6 +1,6 @@
 # Integrated Init Tracker for LSS Vortex
 
-**Integrated Init Tracker** — это пользовательский скрипт (UserScript) для расширения [Tampermonkey](https://www.tampermonkey.net/), предназначенный для автоматизации ведения боевых столкновений в веб-приложении [Long Story Short (Vortex)](https://vortex.longstoryshort.app/).
+**Integrated Init Tracker** — это пользовательский скрипт (UserScript) для расширения [Tampermonkey](https://www.tampermonkey.net/), предназначенный для ведения боевых столкновений в веб-приложении [Long Story Short (Vortex)](https://vortex.longstoryshort.app/).
 
 Инструмент добавляет полноценный трекер инициативы прямо в интерфейс приложения, позволяя ДМу быстро управлять ходами, импортировать игроков со «Стола» и отслеживать состояние NPC.
 
