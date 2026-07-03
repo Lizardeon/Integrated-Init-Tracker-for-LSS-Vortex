@@ -6,6 +6,7 @@
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/*
 // @match        http://vortex.longstoryshort.app/*
+// @downloadURL https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
 // @grant        none
 // ==/UserScript==
 
