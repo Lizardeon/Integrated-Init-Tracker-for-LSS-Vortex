@@ -13,7 +13,7 @@
 (function() {
     'use strict';
 
-    let state = JSON.parse(localStorage.getItem('vortex_dm_state_v10')) || {
+    let state = JSON.parse(localStorage.getItem('vortex_IITStorage_v1')) || {
         participants: [],
         current_index: 0,
         round_counter: 1
@@ -22,7 +22,7 @@
     let activeStatusInputs = {};
 
     function saveState() {
-        localStorage.setItem('vortex_dm_state_v10', JSON.stringify(state));
+        localStorage.setItem('vortex_IITStorage_v1', JSON.stringify(state));
     }
 
     const CUSTOM_TAB_ID = 'mantine-custom-tab-dmtracker';
