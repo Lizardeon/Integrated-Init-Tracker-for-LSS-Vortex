@@ -22,7 +22,7 @@
 
 1. Установите расширение **Tampermonkey** для вашего браузера (Chrome, Firefox, Edge и др.).
 2. Нажмите на иконку Tampermonkey и выберите «Создать новый скрипт» (Create a new script).
-3. Перекиньте файл в браузер - вас перебросит на страницу Tampermonkey с установкой скрипта. ИЛИ нажмите на GitHub, на файле скрипта "RAW"
+3. Перекиньте файл в браузер - вас перебросит на страницу Tampermonkey с установкой скрипта. ИЛИ нажмите [сюда](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js)
 4. Откройте [Vortex](https://vortex.longstoryshort.app/) — вкладка трекера появится автоматически.
 
 ## Использование
