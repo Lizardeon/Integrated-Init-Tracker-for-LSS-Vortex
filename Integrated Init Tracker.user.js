@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      1.11
+// @version      1.12
 // @description  Трекер Инициативы
 // @author       Lizardeon & Gemini
-// @match        https://vortex.longstoryshort.app/*
-// @match        http://vortex.longstoryshort.app/*
+// @match        https://vortex.longstoryshort.app/room/*
 // @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
 // @updateURL    https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
 // @grant        none
