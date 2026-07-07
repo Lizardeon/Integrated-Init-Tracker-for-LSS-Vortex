@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      1.10
+// @version      1.11
 // @description  Трекер Инициативы
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/*
@@ -161,6 +161,14 @@
                                 <span id="dm-round-display" style="color: var(--mantine-color-orange-text); font-family: monospace; font-size: 15px; font-weight: 700;">1</span>
                             </div>
 
+                            <button id="dm-btn-sync" title="Обновить данные игроков со стола" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" style="--button-height: var(--button-height-sm); --button-padding-x: var(--button-padding-x-sm); --button-fz: var(--mantine-font-size-sm); --button-radius: var(--mantine-radius-md); --button-bg: var(--mantine-color-blue-light); --button-hover: var(--mantine-color-blue-light-hover); --button-color: var(--mantine-color-blue-text); border: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;" type="button">
+                                <span class="m_80f1301b mantine-Button-inner" style="display: flex; align-items: center; justify-content: center;">
+                                    <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                                    </span>
+                                </span>
+                            </button>
+
                             <button id="dm-btn-clear" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" style="--button-height: var(--button-height-sm); --button-padding-x: var(--button-padding-x-sm); --button-fz: var(--mantine-font-size-sm); --button-radius: var(--mantine-radius-md); --button-bg: transparent; --button-hover: rgba(250, 82, 82, 0.1); --button-color: var(--mantine-color-red-text); border: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-red-text); display: inline-flex; align-items: center; justify-content: center;" type="button">
                                 <span class="m_80f1301b mantine-Button-inner" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                                     <span style="display: flex; align-items: center; justify-content: center; width: 13px; height: 13px; flex-shrink:0;">
@@ -198,7 +206,6 @@
             </div>
         `;
 
-        // Безопасное назначение слушателей с проверкой существования элементов
         const btnNext = container.querySelector('#dm-btn-next');
         if (btnNext) {
             btnNext.addEventListener('click', () => {
@@ -229,6 +236,11 @@
             });
         }
 
+        const btnSync = container.querySelector('#dm-btn-sync');
+        if (btnSync) {
+            btnSync.addEventListener('click', syncPlayers);
+        }
+
         const btnClear = container.querySelector('#dm-btn-clear');
         if (btnClear) {
             btnClear.addEventListener('click', openClearAndSyncModal);
@@ -257,6 +269,106 @@
                 window.renderTracker();
             });
         }
+    }
+
+    // Функция синхронизации данных игроков со стола
+    window.syncPlayers = function() {
+        const cards = document.querySelectorAll('.PartyCardStoryview_card__u4b6T');
+        const playersFromTable = [];
+
+        cards.forEach(card => {
+            const nameEl = card.querySelector('p[style*="font-weight: 700"]');
+            if (!nameEl) return;
+            const name = nameEl.innerText.replace(/[\u00a0\s]+/g, ' ').trim();
+
+            let avatarUrl = '';
+            const imgEl = card.querySelector('.PartyCardStoryview_avatar__Ohnpi img');
+            if (imgEl) avatarUrl = imgEl.getAttribute('src') || '';
+
+            let playerAc = 10;
+            const svgShield = card.querySelector('svg.lucide-shield');
+            if (svgShield) {
+                const acContainer = svgShield.closest('.m_4081bf90');
+                if (acContainer) {
+                    const acValEl = acContainer.querySelector('p[data-size="sm"]');
+                    if (acValEl) playerAc = parseInt(acValEl.innerText) || 10;
+                }
+            }
+
+            let playerHpText = '0 / 0';
+            const svgHeart = card.querySelector('svg.lucide-heart');
+            if (svgHeart) {
+                const hpContainer = svgHeart.closest('.CardOverlay_trigger__otFTj');
+                if (hpContainer) {
+                    const hpValEl = hpContainer.querySelector('p[data-size="sm"]');
+                    if (hpValEl) playerHpText = hpValEl.innerText.trim();
+                }
+            }
+
+            let statuses = [];
+            const statusBadges = card.querySelectorAll('.PartyCardStoryview_badgeRemovable__83_z7 .mantine-Badge-label');
+            statusBadges.forEach(badgeLabel => {
+                const textEl = badgeLabel.querySelector('.mantine-Text-root');
+                if (textEl && textEl.innerText) {
+                    statuses.push(textEl.innerText.trim());
+                }
+            });
+
+            playersFromTable.push({ name, avatar: avatarUrl, ac: playerAc, hp_text: playerHpText, statuses });
+        });
+
+        // Обновляем только существующих PC
+        let updated = false;
+        state.participants.forEach(p => {
+            if (p.is_monster) return; // не трогаем NPC
+            // Ищем совпадение по имени (с учётом возможных различий в пробелах)
+            const match = playersFromTable.find(tp => tp.name === p.name);
+            if (match) {
+                p.ac = match.ac;
+                p.hp_text = match.hp_text;
+                p.statuses = match.statuses.slice(); // копируем массив
+                p.avatar = match.avatar;
+                updated = true;
+            }
+        });
+
+        if (updated) {
+            saveState();
+            window.renderTracker();
+            // Небольшое уведомление (опционально)
+            showTemporaryMessage('Данные игроков обновлены');
+        } else {
+            showTemporaryMessage('Нет игроков для синхронизации');
+        }
+    };
+
+    // Вспомогательная функция для вывода временного сообщения
+    function showTemporaryMessage(text) {
+        const existing = document.getElementById('dm-sync-toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'dm-sync-toast';
+        toast.style = `
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--mantine-color-body);
+            border: 1px solid var(--mantine-color-default-border);
+            border-radius: var(--mantine-radius-md);
+            padding: 8px 16px;
+            font-size: 13px;
+            color: var(--mantine-color-text);
+            box-shadow: var(--mantine-shadow-md);
+            z-index: 99999;
+            font-family: sans-serif;
+            transition: opacity 0.3s ease;
+        `;
+        toast.innerText = text;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 1500);
     }
 
     function openClearAndSyncModal() {
@@ -292,15 +404,9 @@
                 }
             }
 
-            // Ищем все баджи состояний внутри карточки
             let statuses = [];
-
-            // Используем селектор, который находит элементы с классом баджа
-            // и берет текст из их метки
             const statusBadges = card.querySelectorAll('.PartyCardStoryview_badgeRemovable__83_z7 .mantine-Badge-label');
-
             statusBadges.forEach(badgeLabel => {
-                // Внутри label находится Text-root с текстом состояния
                 const textEl = badgeLabel.querySelector('.mantine-Text-root');
                 if (textEl && textEl.innerText) {
                     statuses.push(textEl.innerText.trim());
