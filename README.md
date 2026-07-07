@@ -23,7 +23,7 @@
 
 1. Установите расширение **Tampermonkey** для вашего браузера ([Chrome](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo), [Firefox](https://addons.mozilla.org/firefox/addon/tampermonkey/), [Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepogmconbnnjoc)).
 2. Нажмите на ссылку для автоматической установки скрипта:
-   👉 [Установить Integrated Init Tracker](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js)
+   👉 [Установить Integrated Init Tracker](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js)
 3. В открывшейся вкладке Tampermonkey нажмите кнопку **«Установить»** (или «Обновить», если ставили ранее).
 4. Откройте или обновите вкладку с вашей комнатой на [Vortex](https://vortex.longstoryshort.app/) — вкладка трекера со значком скрещенных мечей появится автоматически!
 
