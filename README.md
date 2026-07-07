@@ -4,7 +4,7 @@
 
 Инструмент добавляет полноценную интерактивную панель трекера инициативы прямо в интерфейс приложения, позволяя Мастеру (DM) мгновенно импортировать игроков со «Стола», автоматически считывать броски инициативы из чата и гибко управлять параметрами NPC.
 
-![](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/blob/main/screenshot.png)
+![](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/blob/main/screenshot_2.18.png)
 
 ## 🌟 Основные возможности
 
