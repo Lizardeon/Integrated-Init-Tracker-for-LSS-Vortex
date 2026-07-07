@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      1.12
+// @version      1.13
 // @description  Трекер Инициативы
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
@@ -168,6 +168,23 @@
                                 </span>
                             </button>
 
+                            <button id="dm-btn-export" title="Экспортировать бой в файл" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" style="--button-height: var(--button-height-sm); --button-padding-x: var(--button-padding-x-sm); --button-fz: var(--mantine-font-size-sm); --button-radius: var(--mantine-radius-md); --button-bg: var(--mantine-color-dark-light); --button-hover: var(--mantine-color-dark-hover); --button-color: var(--mantine-color-text); border: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;" type="button">
+                                <span class="m_80f1301b mantine-Button-inner" style="display: flex; align-items: center; justify-content: center;">
+                                    <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                    </span>
+                                </span>
+                            </button>
+
+                            <button id="dm-btn-import" title="Импортировать бой из файла" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" style="--button-height: var(--button-height-sm); --button-padding-x: var(--button-padding-x-sm); --button-fz: var(--mantine-font-size-sm); --button-radius: var(--mantine-radius-md); --button-bg: var(--mantine-color-dark-light); --button-hover: var(--mantine-color-dark-hover); --button-color: var(--mantine-color-text); border: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;" type="button">
+                                <span class="m_80f1301b mantine-Button-inner" style="display: flex; align-items: center; justify-content: center;">
+                                    <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                    </span>
+                                </span>
+                            </button>
+                            <input type="file" id="dm-import-file-input" accept=".json" style="display: none;">
+
                             <button id="dm-btn-clear" class="mantine-focus-auto mantine-active m_77c9d27d mantine-Button-root m_87cf2631 mantine-UnstyledButton-root" style="--button-height: var(--button-height-sm); --button-padding-x: var(--button-padding-x-sm); --button-fz: var(--mantine-font-size-sm); --button-radius: var(--mantine-radius-md); --button-bg: transparent; --button-hover: rgba(250, 82, 82, 0.1); --button-color: var(--mantine-color-red-text); border: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-red-text); display: inline-flex; align-items: center; justify-content: center;" type="button">
                                 <span class="m_80f1301b mantine-Button-inner" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                                     <span style="display: flex; align-items: center; justify-content: center; width: 13px; height: 13px; flex-shrink:0;">
@@ -240,6 +257,19 @@
             btnSync.addEventListener('click', syncPlayers);
         }
 
+        // Привязка обработчиков для Экспорта и Импорта
+        const btnExport = container.querySelector('#dm-btn-export');
+        if (btnExport) {
+            btnExport.addEventListener('click', exportBattle);
+        }
+
+        const btnImport = container.querySelector('#dm-btn-import');
+        const fileInput = container.querySelector('#dm-import-file-input');
+        if (btnImport && fileInput) {
+            btnImport.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', importBattle);
+        }
+
         const btnClear = container.querySelector('#dm-btn-clear');
         if (btnClear) {
             btnClear.addEventListener('click', openClearAndSyncModal);
@@ -268,6 +298,50 @@
                 window.renderTracker();
             });
         }
+    }
+
+    // Функция Экспорта боя в JSON файл
+    function exportBattle() {
+        if (state.participants.length === 0) {
+            showTemporaryMessage('Нечего экспортировать, бой пуст');
+            return;
+        }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+        const downloadAnchorHtml = document.createElement('a');
+        const date = new Date().toISOString().slice(0,10);
+        downloadAnchorHtml.setAttribute("href", dataStr);
+        downloadAnchorHtml.setAttribute("download", `vortex_battle_${date}.json`);
+        document.body.appendChild(downloadAnchorHtml);
+        downloadAnchorHtml.click();
+        downloadAnchorHtml.remove();
+        showTemporaryMessage('Бой успешно экспортирован');
+    }
+
+    // Функция Импорта боя из JSON файла
+    function importBattle(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const parsedState = JSON.parse(event.target.result);
+                if (parsedState && Array.isArray(parsedState.participants)) {
+                    state = parsedState;
+                    activeStatusInputs = {};
+                    saveState();
+                    window.renderTracker();
+                    showTemporaryMessage('Бой успешно импортирован');
+                } else {
+                    showTemporaryMessage('Неверный формат файла боя');
+                }
+            } catch (err) {
+                console.error(err);
+                showTemporaryMessage('Ошибка при чтении файла');
+            }
+            e.target.value = ''; // сброс инпута
+        };
+        reader.readAsText(file);
     }
 
     // Функция синхронизации данных игроков со стола
