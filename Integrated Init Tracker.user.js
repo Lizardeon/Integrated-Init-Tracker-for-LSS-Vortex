@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.10
 // @description  Трекер Инициативы
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/*
 // @match        http://vortex.longstoryshort.app/*
-// @downloadURL https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
+// @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
+// @updateURL    https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -545,6 +546,12 @@
                     <div style="display: flex; align-items: center; gap: 8px; max-width: 200px;">
                         <img src="${p.avatar}" style="width: 26px; height: 26px; border-radius: 6px; object-fit: cover; border: 1px solid var(--mantine-color-blue-filled); flex-shrink: 0;" alt="" />
                         <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${p.name}">${p.name}</span>
+                    </div>
+                `;
+            } else if (p.is_monster) {
+                entityIdentityHtml = `
+                    <div style="display: flex; align-items: center; max-width: 200px;">
+                        <input type="text" value="${p.name}" onblur="window.updateFieldLocal(${idx}, 'name', this.value);" onkeydown="if(event.key==='Enter') { this.blur(); }" style="background:transparent; border:none; color:var(--mantine-color-text); font-weight:600; width:100%; outline:none; padding:0; font-size:13px;" />
                     </div>
                 `;
             } else {
