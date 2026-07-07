@@ -21,7 +21,7 @@
 
 ## ⚙️ Установка
 
-1. Установите расширение **Tampermonkey** для вашего браузера ([Chrome](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo), [Firefox](https://addons.mozilla.org/firefox/addon/tampermonkey/), [Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepogmconbnnjoc)).
+1. Установите расширение **Tampermonkey** для вашего браузера ([Chrome](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo), [Firefox](https://addons.mozilla.org/firefox/addon/tampermonkey/)).
 2. Нажмите на ссылку для автоматической установки скрипта:
    👉 [Установить Integrated Init Tracker](https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js)
 3. В открывшейся вкладке Tampermonkey нажмите кнопку **«Установить»** (или «Обновить», если ставили ранее).
