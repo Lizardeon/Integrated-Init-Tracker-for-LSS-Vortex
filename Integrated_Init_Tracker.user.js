@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.18
-// @description  Крупный карточный трекер инициативы для LSS Vortex с таймером ходов, аналитикой времени и чтением временных хитов ПИ
+// @version      2.19
+// @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
 // @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
@@ -93,6 +93,64 @@
                 border-color: transparent !important;
                 transform: translateY(-1px);
                 box-shadow: 0 3px 8px rgba(250, 82, 82, 0.25);
+            }
+
+            /* --- АДАПТИВНОСТЬ ДЛЯ МОБИЛЬНЫХ ЭКРАНОВ --- */
+            @media (max-width: 768px) {
+                .dm-main-layout {
+                    flex-direction: column !important;
+                }
+                .dm-main-content {
+                    min-width: 100% !important;
+                }
+                .dm-side-panel {
+                    width: 100% !important;
+                }
+                .dm-header-bar {
+                    flex-wrap: wrap !important;
+                    gap: 12px !important;
+                }
+                .dm-header-controls {
+                    width: 100%;
+                    justify-content: flex-end;
+                }
+                .dm-card-row {
+                    grid-template-columns: 36px 1fr !important;
+                    row-gap: 8px !important;
+                    padding: 8px 10px !important;
+                }
+                .dm-card-statuses {
+                    grid-column: 1 / -1;
+                    justify-content: flex-start !important;
+                    border-top: 1px dashed var(--mantine-color-default-border);
+                    padding-top: 4px !important;
+                }
+                .dm-card-hp-ac-group {
+                    grid-column: 1 / -1;
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                    width: 100% !important;
+                    border-top: 1px dashed var(--mantine-color-default-border);
+                    padding-top: 4px !important;
+                    gap: 8px !important;
+                }
+                .dm-card-hp {
+                    flex: 1 !important;
+                    justify-content: flex-start !important;
+                }
+                .dm-card-ac {
+                    border-left: none !important;
+                    padding-left: 0 !important;
+                    height: auto !important;
+                }
+                .dm-hp-widget {
+                    width: 100% !important;
+                }
+                .dm-hp-progress-box {
+                    flex: 1 !important;
+                    width: auto !important;
+                }
             }
         `;
         document.head.appendChild(styleSheet);
@@ -273,7 +331,6 @@
                 }
             }
 
-            // ЧТЕНИЕ ВРЕМЕННЫХ ХИТОВ ИЗ DOM
             let playerTempHp = 0;
             const svgHeartPlus = card.querySelector('svg.lucide-heart-plus');
             if (svgHeartPlus) {
@@ -303,9 +360,9 @@
 
     function buildTrackerLayout(container) {
         container.innerHTML = `
-            <div style="display: flex; flex-direction: row; gap: 12px; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--mantine-color-text); box-sizing: border-box; width:100%; align-items: start; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-shadow: var(--mantine-shadow-xs);">
+            <div class="dm-main-layout" style="display: flex; flex-direction: row; gap: 12px; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--mantine-color-text); box-sizing: border-box; width:100%; align-items: start; flex-wrap: wrap;">
+                <div class="dm-main-content" style="flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 8px;">
+                    <div class="dm-header-bar" style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-shadow: var(--mantine-shadow-xs);">
                         <div style="display: flex; align-items: center; gap: 20px;">
                             <div style="display: flex; flex-direction: column;">
                                 <span style="color: var(--mantine-color-dimmed); text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; font-weight: 700;">Раунд</span>
@@ -316,12 +373,12 @@
                                 <span id="dm-turn-timer-display" style="color: var(--mantine-color-orange-text, #f59e0b); font-family: monospace; font-size: 22px; font-weight: 800; line-height: 1;">00:00</span>
                             </div>
                         </div>
-                        <div id="dm-controls-wrapper" style="display: flex; align-items: center; gap: 6px;"></div>
+                        <div id="dm-controls-wrapper" class="dm-header-controls" style="display: flex; align-items: center; gap: 6px;"></div>
                     </div>
                     <div id="dm-cards-grid" style="display: flex; flex-direction: column; gap: 6px; width: 100%; box-sizing: border-box;"></div>
                 </div>
 
-                <div style="width: 240px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
+                <div class="dm-side-panel" style="width: 240px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
                     <div style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--mantine-shadow-xs);">
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
                             <button id="dm-btn-export" class="dm-interactive-btn" title="Экспорт боя (.json)" style="height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
@@ -340,7 +397,7 @@
                     <div style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px; box-shadow: var(--mantine-shadow-xs);">
                         <form id="dm-monster-form" style="display: flex; flex-direction: column; gap: 6px;">
                             <input type="text" id="dm-m-name" placeholder="Имя NPC / Монстра" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 8px; color: var(--mantine-color-text); font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; max-width: 180px; margin: 0 auto; width: 100%;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 100%;">
                                 <div style="display:flex; flex-direction:column; gap:2px;">
                                     <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">Инит</label>
                                     <input type="number" id="dm-m-init" min="0" max="99" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
@@ -585,8 +642,6 @@
                 p.ac = Math.min(99, match.ac);
                 p.hp_text = match.hp_text;
                 p.avatar = match.avatar;
-
-                // Синхронизируем считанные временные хиты персонажа
                 p.temp_hp = match.temp_hp;
 
                 const currentCustom = (p.statuses || []).filter(st => !match.statuses.includes(st) && (!p.system_statuses || !p.system_statuses.includes(st)));
@@ -628,10 +683,10 @@
         const standardPlayers = parsePlayersFromDOM();
 
         let overlay = document.createElement('div');
-        overlay.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; font-family:sans-serif; color:var(--mantine-color-text);';
+        overlay.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; font-family:sans-serif; color:var(--mantine-color-text); padding:10px; box-sizing:border-box;';
 
         let modal = document.createElement('div');
-        modal.style = 'background:var(--mantine-color-body); border:1px solid var(--mantine-color-default-border); border-radius:var(--mantine-radius-sm); padding:16px; width:340px; box-shadow:var(--mantine-shadow-xl); display:flex; flex-direction:column; gap:12px;';
+        modal.style = 'background:var(--mantine-color-body); border:1px solid var(--mantine-color-default-border); border-radius:var(--mantine-radius-sm); padding:16px; width:100%; max-width:340px; box-shadow:var(--mantine-shadow-xl); display:flex; flex-direction:column; gap:12px;';
 
         modal.innerHTML = `
             <h3 style="margin:0; font-size:15px; font-weight:700; color:var(--mantine-color-blue-text);">Новое столкновение</h3>
@@ -691,7 +746,7 @@
                         name: p.name, initiative: Math.min(99, initVal), ac: Math.min(99, p.ac), description: '',
                         is_monster: false, avatar: p.avatar, hp_text: p.hp_text, statuses: p.statuses,
                         system_statuses: p.statuses.slice(),
-                        temp_hp: p.temp_hp, // Сохраняем временные хиты при инициализации
+                        temp_hp: p.temp_hp,
                         total_time_spent: 0,
                         turns_count: 0
                     });
@@ -904,9 +959,9 @@
             let hpWidgetHtml = '';
             if (p.is_monster) {
                 hpWidgetHtml = `
-                    <div style="display: flex; align-items: center; gap: 8px; width: 175px; box-sizing: border-box; justify-content: space-between;">
-                        <div style="display: flex; flex-direction: column; gap: 3px; width: 105px; flex-shrink: 0;">
-							<div style="display: flex; justify-content: flex-start; font-family: monospace; font-size: 12px; font-weight:700; line-height:1.1; gap: 2px;">
+                    <div class="dm-hp-widget" style="display: flex; align-items: center; gap: 8px; width: 175px; box-sizing: border-box; justify-content: space-between;">
+                        <div class="dm-hp-progress-box" style="display: flex; flex-direction: column; gap: 3px; width: 105px; flex-shrink: 0;">
+                            <div style="display: flex; justify-content: flex-start; font-family: monospace; font-size: 12px; font-weight:700; line-height:1.1; gap: 2px;">
                                 <span style="${isDeadMonster ? 'color:var(--mantine-color-red-text);' : ''}">${hpTextStr}</span>
                                 ${tempHp > 0 ? `<span style="color:#22d3ee; font-weight:800;">+${tempHp}</span>` : ''}
                             </div>
@@ -921,10 +976,9 @@
                     </div>
                 `;
             } else {
-                // ДЛЯ ПИ: Теперь динамически рендерится блок с синим плюсом и значением временных хитов, если они > 0
                 hpWidgetHtml = `
-                    <div style="display: flex; align-items: center; width: 175px; box-sizing: border-box;">
-                        <div style="display: flex; flex-direction: column; gap: 3px; width: 105px;">
+                    <div class="dm-hp-widget" style="display: flex; align-items: center; width: 175px; box-sizing: border-box;">
+                        <div class="dm-hp-progress-box" style="display: flex; flex-direction: column; gap: 3px; width: 105px;">
                             <div style="font-family: monospace; font-size: 12px; color: var(--mantine-color-green-text); font-weight: 700; line-height:1.1; display:flex; gap:4px;">
                                 <span>${hpTextStr}</span>
                                 ${tempHp > 0 ? `<span style="color:#22d3ee; font-weight:800;">+${tempHp}</span>` : ''}
@@ -934,7 +988,6 @@
                                 <div style="background-color:#22d3ee; width:${tempPct}%; height:100%;"></div>
                             </div>
                         </div>
-                        <div style="width: 54px; margin-left: 14px;"></div>
                     </div>
                 `;
             }
@@ -972,23 +1025,25 @@
             }
 
             html += `
-                <div style="background-color: ${cardBackground}; border: ${cardBorder}; opacity: ${cardOpacity}; border-radius: var(--mantine-radius-sm); padding: 6px 12px; display: grid; grid-template-columns: 40px 1.2fr 1fr 175px 40px; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; min-height: 54px; transition: opacity 0.2s ease;">
+                <div class="dm-card-row" style="background-color: ${cardBackground}; border: ${cardBorder}; opacity: ${cardOpacity}; border-radius: var(--mantine-radius-sm); padding: 6px 12px; display: grid; grid-template-columns: 40px 1.2fr 1fr auto; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; min-height: 54px; transition: opacity 0.2s ease;">
                     <div style="display: flex; align-items: center; justify-content: start;">
                         <input type="number" min="0" max="99" value="${p.initiative}" onblur="window.updateFieldLocal(${idx}, 'initiative', this.value); window.renderTracker();" style="width:30px; background:var(--mantine-color-dark-light); border:1px solid transparent; border-radius:3px; color:var(--mantine-color-blue-text); font-weight:800; font-size:14px; text-align:center; outline:none; padding:3px 0; font-family:monospace;">
                     </div>
                     <div style="display: flex; align-items: center; overflow:hidden;">
                         ${identityHtml}
                     </div>
-                    <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; padding: 2px 0;">
+                    <div class="dm-card-statuses" style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; padding: 2px 0;">
                         ${statusesListHtml}
                     </div>
-                    <div style="display: flex; align-items: center; justify-content: flex-start;">
-                        ${hpWidgetHtml}
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: flex-end; border-left: 1px solid var(--mantine-color-default-border); padding-left: 10px; height: 30px;">
-                        <div style="display: flex; align-items: center; justify-content: center; position: relative; width: 26px; height: 26px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-dark-4)" stroke-width="2" style="position: absolute; width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            <input type="number" min="0" max="99" value="${p.ac}" onblur="window.updateFieldLocal(${idx}, 'ac', this.value);" style="width:20px; background:transparent; border:none; color: var(--mantine-color-text); font-weight:700; text-align:center; font-size:11px; font-family:monospace; outline:none; z-index:2; padding:0; margin-top:-1px;" ${!p.is_monster ? 'disabled' : ''}>
+                    <div class="dm-card-hp-ac-group" style="display: flex; align-items: center; gap: 12px;">
+                        <div class="dm-card-hp" style="display: flex; align-items: center; justify-content: flex-start;">
+                            ${hpWidgetHtml}
+                        </div>
+                        <div class="dm-card-ac" style="display: flex; align-items: center; justify-content: flex-end; border-left: 1px solid var(--mantine-color-default-border); padding-left: 10px; height: 30px;">
+                            <div style="display: flex; align-items: center; justify-content: center; position: relative; width: 26px; height: 26px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-dark-4)" stroke-width="2" style="position: absolute; width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <input type="number" min="0" max="99" value="${p.ac}" onblur="window.updateFieldLocal(${idx}, 'ac', this.value);" style="width:20px; background:transparent; border:none; color: var(--mantine-color-text); font-weight:700; text-align:center; font-size:11px; font-family:monospace; outline:none; z-index:2; padding:0; margin-top:-1px;" ${!p.is_monster ? 'disabled' : ''}>
+                            </div>
                         </div>
                     </div>
                 </div>
