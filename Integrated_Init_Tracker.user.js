@@ -5,8 +5,8 @@
 // @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
-// @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
-// @updateURL    https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated%20Init%20Tracker.user.js
+// @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js
+// @updateURL    https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js
 // @grant        none
 // ==/UserScript==
 
