@@ -1020,7 +1020,7 @@
                 `;
             } else {
                 statusesListHtml += `
-                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><span>+</span></button>
+                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 12H20M12 4V20" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 `;
             }
 
