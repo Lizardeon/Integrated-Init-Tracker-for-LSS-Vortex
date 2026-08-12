@@ -2,7 +2,7 @@
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
 // @version      2.21.0
-// @description  Трекер инициативы для LSS Vortex (с динамическим логом и сворачиваемыми панелями)
+// @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
 // @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js
