@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.19.1
-// @description  Трекер инициативы для LSS Vortex
+// @version      2.21.0
+// @description  Трекер инициативы для LSS Vortex (с динамическим логом и сворачиваемыми панелями)
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
 // @downloadURL  https://github.com/Lizardeon/Integrated-Init-Tracker-for-LSS-Vortex/raw/refs/heads/main/Integrated_Init_Tracker.user.js
@@ -13,20 +13,97 @@
 (function() {
     'use strict';
 
-    let state = JSON.parse(localStorage.getItem('vortex_IITStorage_v2')) || {
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+    }
+
+    let state = {
         participants: [],
         current_index: 0,
         round_counter: 1,
         total_combat_time: 0,
         turn_start_timestamp: null,
-        is_combat_active: false
+        is_combat_active: false,
+        side_panel_collapsed: false,
+        combat_log: []
     };
+
+    try {
+        const saved = localStorage.getItem('vortex_IITStorage_v2');
+        if (saved) state = Object.assign(state, JSON.parse(saved));
+        if (!state.combat_log) state.combat_log = [];
+    } catch (e) {
+        console.error('Failed to parse IITStorage:', e);
+    }
 
     let activeStatusInputs = {};
     let timerInterval = null;
 
     function saveState() {
         localStorage.setItem('vortex_IITStorage_v2', JSON.stringify(state));
+    }
+
+    function addLogEntry(type, text) {
+        if (!state.combat_log) state.combat_log = [];
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const roundText = state.is_combat_active ? `Р${state.round_counter}` : 'Вне боя';
+
+        const entry = {
+            type, // 'turn', 'damage', 'heal', 'status', 'info', 'system'
+            roundText,
+            timeStr,
+            text
+        };
+
+        state.combat_log.unshift(entry);
+        if (state.combat_log.length > 100) state.combat_log.pop();
+
+        saveState();
+        renderCombatLog();
+    }
+
+    /* --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ КУБИКОВ И ФОРМУЛ --- */
+    function rollDice(sides) {
+        return Math.floor(Math.random() * sides) + 1;
+    }
+
+    function parseDiceFormula(expr) {
+        if (!expr) return 10;
+        expr = String(expr).trim().toLowerCase().replace(/\s+/g, '');
+
+        // Попытка распарсить выражение вида 2d8+4, 1d20-2, 8, d6 и т.д.
+        const regex = /^(\d*)d(\d+)([\+\-]\d+)?$/;
+        const match = expr.match(regex);
+
+        if (match) {
+            const count = match[1] ? parseInt(match[1], 10) : 1;
+            const sides = parseInt(match[2], 10);
+            const modifier = match[3] ? parseInt(match[3], 10) : 0;
+
+            let total = 0;
+            for (let i = 0; i < count; i++) {
+                total += rollDice(sides);
+            }
+            return Math.max(1, total + modifier);
+        }
+
+        const directNum = parseInt(expr, 10);
+        return isNaN(directNum) ? 10 : directNum;
+    }
+
+    function parseInitiativeValue(expr) {
+        if (!expr) return 0;
+        expr = String(expr).trim();
+
+        // Если введено с плюсом или минусом (+3, -1) -> бросаем d20 + бонус
+        if (expr.startsWith('+') || expr.startsWith('-')) {
+            const mod = parseInt(expr, 10) || 0;
+            const d20 = rollDice(20);
+            return d20 + mod;
+        }
+
+        const directNum = parseInt(expr, 10);
+        return isNaN(directNum) ? 0 : directNum;
     }
 
     const CUSTOM_TAB_ID = 'mantine-custom-tab-dmtracker';
@@ -95,7 +172,53 @@
                 box-shadow: 0 3px 8px rgba(250, 82, 82, 0.25);
             }
 
-            /* --- АДАПТИВНОСТЬ ДЛЯ МОБИЛЬНЫХ ЭКРАНОВ --- */
+            .dm-side-panel.collapsed {
+                display: none !important;
+            }
+
+            /* --- СТИЛИ СВОРАЧИВАЕМЫХ КАРТОЧЕК --- */
+            .dm-collapsible-card {
+                background-color: var(--mantine-color-body);
+                border: 1px solid var(--mantine-color-default-border);
+                border-radius: var(--mantine-radius-sm);
+                padding: 8px 10px;
+                box-shadow: var(--mantine-shadow-xs);
+            }
+
+            .dm-collapsible-summary {
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--mantine-color-blue-text);
+                cursor: pointer;
+                user-select: none;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                outline: none;
+            }
+
+            .dm-collapsible-summary::-webkit-details-marker {
+                display: none;
+            }
+
+            .dm-collapsible-summary::after {
+                content: '';
+                width: 6px;
+                height: 6px;
+                border-right: 2px solid var(--mantine-color-dimmed);
+                border-bottom: 2px solid var(--mantine-color-dimmed);
+                transform: rotate(45deg);
+                transition: transform 0.2s ease;
+                margin-right: 2px;
+            }
+
+            details[open] .dm-collapsible-summary::after {
+                transform: rotate(-135deg);
+            }
+
+            /* --- АДАПТИВНОСТЬ --- */
             @media (max-width: 768px) {
                 .dm-main-layout {
                     flex-direction: column !important;
@@ -118,12 +241,6 @@
                     grid-template-columns: 36px 1fr !important;
                     row-gap: 8px !important;
                     padding: 8px 10px !important;
-                }
-                .dm-card- {
-                    grid-column: 1 / -1;
-                    justify-content: flex-start !important;
-                    border-top: 1px dashed var(--mantine-color-default-border);
-                    padding-top: 4px !important;
                 }
                 .dm-card-hp-ac-group {
                     grid-column: 1 / -1;
@@ -152,12 +269,30 @@
                     width: auto !important;
                 }
             }
+
+            /* Показываем кнопку удаления только при наведении на строку карточки */
+            .dm-card-row .dm-btn-delete-participant {
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.15s ease !important;
+            }
+            .dm-card-row:hover .dm-btn-delete-participant {
+                opacity: 1;
+                pointer-events: auto;
+            }
         `;
         document.head.appendChild(styleSheet);
     }
 
+    function stopTimerLogic() {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+    }
+
     function startTimerLogic() {
-        if (timerInterval) clearInterval(timerInterval);
+        stopTimerLogic();
         if (!state.is_combat_active) return;
 
         if (!state.turn_start_timestamp && state.participants.length > 0) {
@@ -216,7 +351,7 @@
 
             dmTab.innerHTML = `
                 <span style="display: flex; align-items: center; justify-content: center; width:14px; height:14px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
+                    <svg class="lucide lucide-swords" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
                 </span>
                 <span class="mantine-Tabs-tabLabel" style="font-size:13px;">Бой</span>
             `;
@@ -287,7 +422,7 @@
 
         const dmPanel = document.getElementById(CUSTOM_PANEL_ID);
         if (dmPanel) dmPanel.style.display = 'none';
-        if (timerInterval) clearInterval(timerInterval);
+        stopTimerLogic();
 
         setTimeout(() => {
             const targetPanelId = clickedTab.getAttribute('aria-controls');
@@ -363,85 +498,130 @@
             <div class="dm-main-layout" style="display: flex; flex-direction: row; gap: 12px; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--mantine-color-text); box-sizing: border-box; width:100%; align-items: start; flex-wrap: wrap;">
                 <div class="dm-main-content" style="flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 8px;">
                     <div class="dm-header-bar" style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-shadow: var(--mantine-shadow-xs);">
-                        <div style="display: flex; align-items: center; gap: 20px;">
+                        <div style="display: flex; align-items: center; gap: 16px;">
                             <div style="display: flex; flex-direction: column;">
                                 <span style="color: var(--mantine-color-dimmed); text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; font-weight: 700;">Раунд</span>
                                 <span id="dm-round-display" style="color: var(--mantine-color-blue-text); font-family: monospace; font-size: 22px; font-weight: 800; line-height: 1;">1</span>
                             </div>
-                            <div style="display: flex; flex-direction: column; border-left: 1px solid var(--mantine-color-default-border); padding-left: 16px;">
+                            <div style="display: flex; flex-direction: column; border-left: 1px solid var(--mantine-color-default-border); padding-left: 14px;">
                                 <span style="color: var(--mantine-color-dimmed); text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; font-weight: 700;">Время хода</span>
                                 <span id="dm-turn-timer-display" style="color: var(--mantine-color-orange-text, #f59e0b); font-family: monospace; font-size: 22px; font-weight: 800; line-height: 1;">00:00</span>
                             </div>
+                            <button id="dm-btn-toggle-side" class="dm-interactive-btn" style="height: 28px; padding: 0 10px; font-size: 11px; font-weight: 600; border-radius: var(--mantine-radius-sm); cursor: pointer; display: flex; align-items: center; gap: 4px; border-left: 1px solid var(--mantine-color-default-border); margin-left: 4px;" title="Скрыть/Показать боковую панель">
+                                <svg class="lucide lucide-panel-right-close" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 15 3-3-3-3"/></svg>
+                                <span id="dm-toggle-side-text">Панель</span>
+                            </button>
                         </div>
                         <div id="dm-controls-wrapper" class="dm-header-controls" style="display: flex; align-items: center; gap: 6px;"></div>
                     </div>
                     <div id="dm-cards-grid" style="display: flex; flex-direction: column; gap: 6px; width: 100%; box-sizing: border-box;"></div>
                 </div>
 
-                <div class="dm-side-panel" style="width: 240px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
-                    <div style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--mantine-shadow-xs);">
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
-                            <button id="dm-btn-export" class="dm-interactive-btn" title="Экспорт боя (.json)" style="height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                            </button>
-                            <button id="dm-btn-import" class="dm-interactive-btn" title="Импорт боя (.json)" style="height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                            </button>
-                            <input type="file" id="dm-import-file-input" accept=".json" style="display: none;">
-                        </div>
-                        <button id="dm-btn-clear" class="dm-interactive-btn-red" style="border-radius: var(--mantine-radius-sm); height: 28px; cursor: pointer; font-weight: 600; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            Новое столкновение
-                        </button>
-                    </div>
+                <div class="dm-side-panel ${state.side_panel_collapsed ? 'collapsed' : ''}" style="width: 240px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
 
-                    <div style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px; box-shadow: var(--mantine-shadow-xs);">
-                        <form id="dm-monster-form" style="display: flex; flex-direction: column; gap: 6px;">
-                            <input type="text" id="dm-m-name" placeholder="Имя NPC / Монстра" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 8px; color: var(--mantine-color-text); font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 100%;">
+                    <!-- Панель управления боем -->
+                    <details class="dm-collapsible-card" open>
+                        <summary class="dm-collapsible-summary">
+                            <span style="display:inline-flex; align-items:center; gap:6px;">
+                                <svg class="lucide lucide-sliders-horizontal" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>
+                                Управление
+                            </span>
+                        </summary>
+                        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                                <button id="dm-btn-export" class="dm-interactive-btn" title="Экспорт боя (.json)" style="height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap:4px; font-size:11px;">
+                                    <svg class="lucide lucide-download" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Экспорт
+                                </button>
+                                <button id="dm-btn-import" class="dm-interactive-btn" title="Импорт боя (.json)" style="height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap:4px; font-size:11px;">
+                                    <svg class="lucide lucide-upload" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg> Импорт
+                                </button>
+                                <input type="file" id="dm-import-file-input" accept=".json" style="display: none;">
+                            </div>
+                            <button id="dm-btn-clear" class="dm-interactive-btn-red" style="border-radius: var(--mantine-radius-sm); height: 28px; cursor: pointer; font-weight: 600; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <svg class="lucide lucide-rotate-ccw" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                Новое столкновение
+                            </button>
+                        </div>
+                    </details>
+
+                    <!-- Панель добавления NPC -->
+                    <details class="dm-collapsible-card" open>
+                        <summary class="dm-collapsible-summary">
+                            <span style="display:inline-flex; align-items:center; gap:6px;">
+                                <svg class="lucide lucide-user-plus" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+                                Добавить NPC
+                            </span>
+                        </summary>
+                        <form id="dm-monster-form" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                            <div style="display: grid; grid-template-columns: 1fr 45px; gap: 4px; width: 100%;">
+                                <input type="text" id="dm-m-name" placeholder="Имя NPC" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 8px; color: var(--mantine-color-text); font-size: 12px; outline: none; box-sizing: border-box;">
+                                <input type="number" id="dm-m-count" min="1" max="50" value="1" title="Количество" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; box-sizing: border-box;">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 3fr 4fr 2fr; gap: 4px; width: 100%;">
                                 <div style="display:flex; flex-direction:column; gap:2px;">
-                                    <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">Инит</label>
-                                    <input type="number" id="dm-m-init" min="0" max="99" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
+                                    <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">Иниц</label>
+                                    <input type="text" id="dm-m-init" placeholder="10 или +3" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 11px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
                                 </div>
                                 <div style="display:flex; flex-direction:column; gap:2px;">
-                                    <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">HP</label>
-                                    <input type="number" id="dm-m-hp" min="1" max="999" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
+                                    <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">Хитов</label>
+                                    <input type="text" id="dm-m-hp" placeholder="15 или 2d8+2" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 11px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
                                 </div>
                                 <div style="display:flex; flex-direction:column; gap:2px;">
                                     <label style="font-size:8px; color:var(--mantine-color-dimmed); font-weight:600; text-align:center;">КД</label>
-                                    <input type="number" id="dm-m-ac" min="0" max="99" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
+                                    <input type="number" id="dm-m-ac" min="0" max="99" placeholder="12" required style="background-color: var(--mantine-color-dark-light); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 4px 2px; color: var(--mantine-color-text); font-size: 12px; text-align: center; outline: none; width: 100%; box-sizing: border-box;">
                                 </div>
                             </div>
-                            <button type="submit" class="dm-interactive-btn-blue" style="border-radius: var(--mantine-radius-sm); height: 28px; font-size: 12px; font-weight: 600; cursor: pointer; display:flex; align-items:center; justify-content:center; margin-top: 2px; color:#fff;">
-                                Добавить в бой
+                            <button type="submit" class="dm-interactive-btn-blue" style="border-radius: var(--mantine-radius-sm); height: 28px; font-size: 12px; font-weight: 600; cursor: pointer; display:flex; align-items:center; justify-content:center; margin-top: 2px; color:#fff; gap:4px;">
+                                <svg class="lucide lucide-plus" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg> Добавить в бой
                             </button>
                         </form>
-                    </div>
+                    </details>
 
-                    <div id="dm-stats-panel" style="background-color: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-sm); padding: 10px; box-shadow: var(--mantine-shadow-xs); display: flex; flex-direction: column; gap: 6px;">
-                        <span style="color: var(--mantine-color-blue-text); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Аналитика боя</span>
-                        <div style="font-size:11px; display:flex; flex-direction:column; gap:2px; color: var(--mantine-color-text);">
-                            <div style="display:flex; justify-content:space-between;"><span style="color:var(--mantine-color-dimmed);">Время боя:</span><span id="stat-total-combat" style="font-family:monospace; font-weight:600;">00:00</span></div>
-                            <div style="display:flex; justify-content:space-between;"><span style="color:var(--mantine-color-dimmed);">Ср. на раунд:</span><span id="stat-avg-round" style="font-family:monospace; font-weight:600;">00:00</span></div>
+                    <!-- Панель Аналитики -->
+                    <details class="dm-collapsible-card" open>
+                        <summary class="dm-collapsible-summary">
+                            <span style="display:inline-flex; align-items:center; gap:6px;">
+                                <svg class="lucide lucide-bar-chart-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+                                Аналитика
+                            </span>
+                        </summary>
+                        <div id="dm-stats-panel" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                            <div style="font-size:11px; display:flex; flex-direction:column; gap:2px; color: var(--mantine-color-text);">
+                                <div style="display:flex; justify-content:space-between;"><span style="color:var(--mantine-color-dimmed);">Время боя:</span><span id="stat-total-combat" style="font-family:monospace; font-weight:600;">00:00</span></div>
+                                <div style="display:flex; justify-content:space-between;"><span style="color:var(--mantine-color-dimmed);">Ср. на раунд:</span><span id="stat-avg-round" style="font-family:monospace; font-weight:600;">00:00</span></div>
+                            </div>
+                            <div style="border-top: 1px dashed var(--mantine-color-default-border); margin-top: 4px; padding-top: 4px;">
+                                <table style="width:100%; font-size:10px; border-collapse:collapse; color: var(--mantine-color-text);">
+                                    <thead>
+                                        <tr style="color:var(--mantine-color-dimmed); text-align:left;">
+                                            <th style="font-weight:600; padding-bottom:3px;">Игрок</th>
+                                            <th style="font-weight:600; text-align:right; padding-bottom:3px;">Всего</th>
+                                            <th style="font-weight:600; text-align:right; padding-bottom:3px;">Ср./ход</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stat-players-tbody">
+                                        <tr><td colspan="3" style="text-align:center; color:var(--mantine-color-dimmed); padding:4px 0;">Нет данных</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div style="border-top: 1px dashed var(--mantine-color-default-border); margin-top: 4px; padding-top: 4px;">
-                            <table style="width:100%; font-size:10px; border-collapse:collapse; color: var(--mantine-color-text);">
-                                <thead>
-                                    <tr style="color:var(--mantine-color-dimmed); text-align:left;">
-                                        <th style="font-weight:600; padding-bottom:3px;">Игрок</th>
-                                        <th style="font-weight:600; text-align:right; padding-bottom:3px;">Всего</th>
-                                        <th style="font-weight:600; text-align:right; padding-bottom:3px;">Ср./ход</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="stat-players-tbody">
-                                    <tr><td colspan="3" style="text-align:center; color:var(--mantine-color-dimmed); padding:4px 0;">Нет данных PC</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    </details>
+
+                    <!-- Панель Лога боя -->
+                    <details id="dm-combat-log-details" class="dm-collapsible-card" open>
+                        <summary class="dm-collapsible-summary">
+                            <span style="display:inline-flex; align-items:center; gap:6px;">
+                                <svg class="lucide lucide-scroll-text" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M15 8h-5"/><path d="M15 12h-5"/></svg>
+                                Лог
+                            </span>
+                        </summary>
+                        <div id="dm-combat-log-list" style="max-height: 180px; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; padding-right: 2px;"></div>
+                    </details>
                 </div>
             </div>
         `;
 
+        container.querySelector('#dm-btn-toggle-side').addEventListener('click', toggleSidePanel);
         container.querySelector('#dm-btn-export').addEventListener('click', exportBattle);
 
         const fileInput = container.querySelector('#dm-import-file-input');
@@ -452,27 +632,57 @@
 
         container.querySelector('#dm-monster-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = container.querySelector('#dm-m-name').value;
-            let initiative = parseInt(container.querySelector('#dm-m-init').value, 10) || 0;
-            let max_hp = parseInt(container.querySelector('#dm-m-hp').value, 10) || 10;
+            const baseName = container.querySelector('#dm-m-name').value.trim();
+            const rawInit = container.querySelector('#dm-m-init').value;
+            const rawHp = container.querySelector('#dm-m-hp').value;
             let ac = parseInt(container.querySelector('#dm-m-ac').value, 10) || 10;
+            let count = parseInt(container.querySelector('#dm-m-count').value, 10) || 1;
 
-            if (initiative > 99) initiative = 99;
             if (ac > 99) ac = 99;
-            if (max_hp > 999) max_hp = 999;
+            if (count > 50) count = 50;
 
-            state.participants.push({
-                name, initiative, ac, description: '',
-                hp: max_hp, max_hp, temp_hp: 0,
-                is_monster: true, avatar: '', statuses: []
-            });
+            for (let i = 1; i <= count; i++) {
+                const name = count > 1 ? `${baseName} #${i}` : baseName;
+
+                // Просчитываем инициативу и хиты индивидуально для каждого монстра
+                let initiative = parseInitiativeValue(rawInit);
+                let max_hp = parseDiceFormula(rawHp);
+
+                if (initiative > 99) initiative = 99;
+                if (max_hp > 999) max_hp = 999;
+
+                state.participants.push({
+                    id: generateId(), name, initiative, ac, description: '',
+                    hp: max_hp, max_hp, temp_hp: 0,
+                    is_monster: true, avatar: '', statuses: []
+                });
+
+                addLogEntry('info', `Добавлен NPC **${name}** (Иниц: ${initiative}, Хитов: ${max_hp}, КД: ${ac})`);
+            }
 
             state.participants.sort((a, b) => b.initiative - a.initiative);
             saveState();
 
             e.target.reset();
+            container.querySelector('#dm-m-count').value = 1;
             window.renderTracker();
         });
+
+        renderCombatLog();
+    }
+
+    function toggleSidePanel() {
+        state.side_panel_collapsed = !state.side_panel_collapsed;
+        saveState();
+
+        const sidePanel = document.querySelector('.dm-side-panel');
+        if (sidePanel) {
+            if (state.side_panel_collapsed) {
+                sidePanel.classList.add('collapsed');
+            } else {
+                sidePanel.classList.remove('collapsed');
+            }
+        }
     }
 
     function renderControlButtons() {
@@ -482,7 +692,7 @@
         if (!state.is_combat_active && state.participants.length > 0) {
             wrapper.innerHTML = `
                 <button id="dm-btn-start-combat" class="dm-interactive-btn-blue" style="height: 34px; border-radius: var(--mantine-radius-sm); color: #fff; padding: 0 20px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg style="width:14px; height:14px;" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="lucide lucide-play" style="width:14px; height:14px;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                     Начать бой
                 </button>
             `;
@@ -495,6 +705,8 @@
                     firstActive.turns_count = 1;
                 }
 
+                addLogEntry('turn', `**Бой начался!** Первым ходит **${firstActive ? firstActive.name : 'Никого'}**`);
+
                 saveState();
                 window.renderTracker();
                 startTimerLogic();
@@ -502,12 +714,12 @@
         } else {
             wrapper.innerHTML = `
                 <button id="dm-btn-prev" class="dm-interactive-btn" style="height: 34px; border-radius: var(--mantine-radius-sm); padding: 0 12px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-                    <svg style="width:14px; height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+                    <svg class="lucide lucide-chevron-left" style="width:14px; height:14px;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                     Пред.
                 </button>
                 <button id="dm-btn-next" class="dm-interactive-btn-blue" style="height: 34px; border-radius: var(--mantine-radius-sm); color: #fff; padding: 0 14px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
                     След.
-                    <svg style="width:14px; height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+                    <svg class="lucide lucide-chevron-right" style="width:14px; height:14px;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
             `;
 
@@ -520,6 +732,8 @@
         if (state.participants.length === 0) return;
 
         let attempts = 0;
+        let oldRound = state.round_counter;
+
         do {
             state.current_index += direction;
             if (state.current_index >= state.participants.length) {
@@ -543,7 +757,11 @@
                 if (match) {
                     const name = match[1].trim();
                     const val = parseInt(match[2], 10) - 1;
-                    return val > 0 ? `${name} (${val})` : null;
+                    if (val <= 0) {
+                        addLogEntry('status', `У **${activeP.name}** истек статус "${name}"`);
+                        return null;
+                    }
+                    return `${name} (${val})`;
                 }
                 return st;
             }).filter(Boolean);
@@ -553,6 +771,13 @@
         const nextActive = state.participants[state.current_index];
         if (nextActive && !nextActive.is_monster) {
             nextActive.turns_count = (nextActive.turns_count || 0) + 1;
+        }
+
+        if (oldRound !== state.round_counter) {
+            addLogEntry('system', `**Начался Раунд ${state.round_counter}**`);
+        }
+        if (nextActive) {
+            addLogEntry('turn', `Ход перешел к **${nextActive.name}**`);
         }
 
         saveState();
@@ -595,6 +820,43 @@
         tbodyEl.innerHTML = html;
     }
 
+    function renderCombatLog() {
+        const logContainer = document.getElementById('dm-combat-log-list');
+        if (!logContainer) return;
+
+        if (!state.combat_log || state.combat_log.length === 0) {
+            logContainer.innerHTML = `<div style="color:var(--mantine-color-dimmed); font-size:10px; text-align:center; padding: 6px 0;">Событий пока нет</div>`;
+            return;
+        }
+
+        const icons = {
+            turn: `<svg class="lucide lucide-swords" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-blue-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>`,
+            damage: `<svg class="lucide lucide-flame" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-red-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+            heal: `<svg class="lucide lucide-heart-pulse" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-green-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg>`,
+            status: `<svg class="lucide lucide-sparkles" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
+            info: `<svg class="lucide lucide-info" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-dimmed)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
+            system: `<svg class="lucide lucide-bell" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-orange-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`
+        };
+
+        logContainer.innerHTML = state.combat_log.map(item => {
+            const formattedText = item.text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--mantine-color-text); font-weight:700;">$1</strong>');
+            const iconSvg = icons[item.type] || icons.info;
+
+            return `
+                <div style="display: flex; gap: 6px; align-items: flex-start; padding: 4px 6px; background: var(--mantine-color-dark-light); border-radius: 4px; font-size: 10px; line-height: 1.35; border: 1px solid rgba(255,255,255,0.03);">
+                    <span style="display: inline-flex; margin-top: 1px; flex-shrink: 0;">${iconSvg}</span>
+                    <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1px;">
+                            <span style="font-size: 8px; font-weight: 800; color: var(--mantine-color-blue-text); text-transform: uppercase; letter-spacing: 0.3px;">${item.roundText}</span>
+                            <span style="font-size: 8px; color: var(--mantine-color-dimmed); font-family: monospace;">${item.timeStr}</span>
+                        </div>
+                        <span style="color: var(--mantine-color-dimmed); word-break: break-word;">${formattedText}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     function exportBattle() {
         if (state.participants.length === 0) {
             showTemporaryMessage('Бой пуст');
@@ -607,6 +869,7 @@
         document.body.appendChild(downloadAnchorHtml);
         downloadAnchorHtml.click();
         downloadAnchorHtml.remove();
+        addLogEntry('info', `Бой экспортирован в файл`);
     }
 
     function importBattle(e) {
@@ -620,6 +883,7 @@
                 if (parsedState && Array.isArray(parsedState.participants)) {
                     state = parsedState;
                     activeStatusInputs = {};
+                    addLogEntry('info', `Бой импортирован из файла`);
                     saveState();
                     window.renderTracker();
                     startTimerLogic();
@@ -637,6 +901,7 @@
 
         state.participants.forEach(p => {
             if (p.is_monster) return;
+            if (!p.id) p.id = generateId();
             const match = playersFromTable.find(tp => tp.name === p.name);
             if (match) {
                 p.ac = Math.min(99, match.ac);
@@ -743,7 +1008,7 @@
                     }
 
                     selectedParticipants.push({
-                        name: p.name, initiative: Math.min(99, initVal), ac: Math.min(99, p.ac), description: '',
+                        id: generateId(), name: p.name, initiative: Math.min(99, initVal), ac: Math.min(99, p.ac), description: '',
                         is_monster: false, avatar: p.avatar, hp_text: p.hp_text, statuses: p.statuses,
                         system_statuses: p.statuses.slice(),
                         temp_hp: p.temp_hp,
@@ -760,9 +1025,12 @@
             state.total_combat_time = 0;
             state.turn_start_timestamp = null;
             state.is_combat_active = false;
+            state.combat_log = [];
             activeStatusInputs = {};
 
-            if (timerInterval) clearInterval(timerInterval);
+            addLogEntry('system', `**Новое столкновение создано.** Загружено игроков: ${selectedParticipants.length}`);
+
+            stopTimerLogic();
 
             saveState();
             window.renderTracker();
@@ -779,13 +1047,17 @@
         try {
             if (expr.startsWith('t')) {
                 const tVal = parseInt(expr.substring(1), 10);
-                if (!isNaN(tVal)) p.temp_hp = Math.min(999, Math.max(0, tVal));
+                if (!isNaN(tVal)) {
+                    p.temp_hp = Math.min(999, Math.max(0, tVal));
+                    addLogEntry('heal', `**${p.name}** получил ${p.temp_hp} врем. HP`);
+                }
             }
             else if (expr.startsWith('m')) {
                 const mVal = parseInt(expr.substring(1), 10);
                 if (!isNaN(mVal) && mVal > 0) {
                     p.max_hp = Math.min(999, mVal);
                     if (p.hp > p.max_hp) p.hp = p.max_hp;
+                    addLogEntry('info', `У **${p.name}** изм. макс. HP: ${p.max_hp}`);
                 }
             }
             else {
@@ -804,8 +1076,15 @@
                         }
                     }
                     p.hp = Math.max(0, p.hp - damage);
+
+                    if (p.hp <= 0) {
+                        addLogEntry('damage', `**${p.name}** получил ${val} урона и пал!`);
+                    } else {
+                        addLogEntry('damage', `**${p.name}** получил ${val} урона (${p.hp}/${p.max_hp})`);
+                    }
                 } else if (expr.startsWith('+')) {
                     p.hp = Math.min(p.max_hp, p.hp + val);
+                    addLogEntry('heal', `**${p.name}** восстановил ${val} хитов (${p.hp}/${p.max_hp})`);
                 }
             }
 
@@ -834,6 +1113,7 @@
             if (!state.participants[idx].statuses) state.participants[idx].statuses = [];
             if (!state.participants[idx].statuses.includes(newStatus)) {
                 state.participants[idx].statuses.push(newStatus);
+                addLogEntry('status', `К **${state.participants[idx].name}** добавлен статус "${newStatus}"`);
             }
         }
         activeStatusInputs[idx] = false;
@@ -841,9 +1121,36 @@
         window.renderTracker();
     };
 
+    window.removeParticipant = function(idx) {
+        const p = state.participants[idx];
+        if (!p) return;
+
+        // Защита от случайного нажатия: диалог подтверждения
+        if (!confirm(`Удалить "${p.name}" из боя?`)) {
+            return;
+        }
+
+        const removedName = p.name;
+        state.participants.splice(idx, 1);
+
+        // Корректируем индекс текущего ходящего
+        if (state.current_index >= state.participants.length) {
+            state.current_index = Math.max(0, state.participants.length - 1);
+        } else if (idx < state.current_index) {
+            state.current_index = Math.max(0, state.current_index - 1);
+        }
+
+        addLogEntry('info', `**${removedName}** был удален из боя`);
+        saveState();
+        window.renderTracker();
+    };
+
     window.removeMonsterStatus = function(idx, statusIdx) {
         if (state.participants[idx] && state.participants[idx].statuses) {
-            state.participants[idx].statuses.splice(statusIdx, 1);
+            const removed = state.participants[idx].statuses.splice(statusIdx, 1);
+            if (removed && removed[0]) {
+                addLogEntry('status', `У **${state.participants[idx].name}** удален статус "${removed[0]}"`);
+            }
             saveState();
             window.renderTracker();
         }
@@ -1020,7 +1327,7 @@
                 `;
             } else {
                 statusesListHtml += `
-                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg style="width:16px; height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M4 12H20M12 4V20" stroke="#fff"/></svg></button>
+                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg class="lucide lucide-plus" style="width:14px; height:14px;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-blue-outline)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
                 `;
             }
 
@@ -1036,14 +1343,20 @@
                         ${statusesListHtml}
                     </div>
                     <div class="dm-card-hp-ac-group" style="display: flex; align-items: center; gap: 12px;">
-                        <div class="dm-card-hp" style="display: flex; align-items: center; justify-content: flex-start;">
-                            ${hpWidgetHtml}
-                        </div>
-                        <div class="dm-card-ac" style="display: flex; align-items: center; justify-content: flex-end; border-left: 1px solid var(--mantine-color-default-border); padding-left: 10px; height: 30px;">
-                            <div style="display: flex; align-items: center; justify-content: center; position: relative; width: 26px; height: 26px;">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-dark-4)" stroke-width="2" style="position: absolute; width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                                <input type="number" min="0" max="99" value="${p.ac}" onblur="window.updateFieldLocal(${idx}, 'ac', this.value);" style="width:20px; background:transparent; border:none; color: var(--mantine-color-text); font-weight:700; text-align:center; font-size:11px; font-family:monospace; outline:none; z-index:2; padding:0; margin-top:-1px;" ${!p.is_monster ? 'disabled' : ''}>
+                        <div class="dm-card-hp-ac-group" style="display: flex; align-items: center; gap: 8px;">
+                            <div class="dm-card-hp" style="display: flex; align-items: center; justify-content: flex-start;">
+                                 ${hpWidgetHtml}
                             </div>
+                            <div class="dm-card-ac" style="display: flex; align-items: center; justify-content: flex-end; border-left: 1px solid var(--mantine-color-default-border); padding-left: 10px; height: 30px;">
+                                 <div style="display: flex; align-items: center; justify-content: center; position: relative; width: 26px; height: 26px;">
+                                     <svg class="lucide lucide-shield" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--mantine-color-dark-4)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; width:100%; height:100%;"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                                     <input type="number" min="0" max="99" value="${p.ac}" onblur="window.updateFieldLocal(${idx}, 'ac', this.value);" style="width:20px; background:transparent; border:none; color: var(--mantine-color-text); font-weight:700; text-align:center; font-size:11px; font-family:monospace; outline:none; z-index:2; padding:0; margin-top:-1px;" ${!p.is_monster ? 'disabled' : ''}>
+                                 </div>
+                            </div>
+                            <!-- ТИХАЯ КНОПКА УДАЛЕНИЯ -->
+                            <button class="dm-interactive-btn" onclick="window.removeParticipant(${idx})" title="Удалить из боя" style="width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; background: transparent; border: none; color: var(--mantine-color-dimmed); opacity: 0.35; transition: opacity 0.15s, color 0.15s;" onmouseover="this.style.opacity='1'; this.style.color='var(--mantine-color-red-text)';" onmouseout="this.style.opacity='0.35'; this.style.color='var(--mantine-color-dimmed)';">
+                                <svg class="lucide lucide-trash-2" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1052,12 +1365,18 @@
 
         gridContainer.innerHTML = html;
         updateStatisticsPanel();
+        renderCombatLog();
     }
 
     const observer = new MutationObserver(() => {
         checkAndInject();
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    window.addEventListener('beforeunload', () => {
+        stopTimerLogic();
+        if (observer) observer.disconnect();
+    });
 
     setTimeout(checkAndInject, 1000);
 })();
