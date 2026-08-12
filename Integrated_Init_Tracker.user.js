@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.19.2
+// @version      2.19.3
 // @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
@@ -119,7 +119,7 @@
                     row-gap: 8px !important;
                     padding: 8px 10px !important;
                 }
-                .dm-card-statuses {
+                .dm-card- {
                     grid-column: 1 / -1;
                     justify-content: flex-start !important;
                     border-top: 1px dashed var(--mantine-color-default-border);
@@ -1020,7 +1020,7 @@
                 `;
             } else {
                 statusesListHtml += `
-                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 12H20M12 4V20" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg style="width:16px; height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M4 12H20M12 4V20"/></svg></button>
                 `;
             }
 
