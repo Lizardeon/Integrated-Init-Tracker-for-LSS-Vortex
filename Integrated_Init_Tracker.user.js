@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.19.3
+// @version      2.19.4
 // @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
@@ -1020,7 +1020,7 @@
                 `;
             } else {
                 statusesListHtml += `
-                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg style="width:16px; height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M4 12H20M12 4V20"/></svg></button>
+                    <button onclick="window.toggleStatusInput(${idx})" style="width:20px; height:20px; border-radius:3px; background:transparent; border:1px dashed var(--mantine-color-blue-outline); color:var(--mantine-color-blue-outline); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; cursor:pointer; padding:0; margin:2px 0;"><svg style="width:16px; height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M4 12H20M12 4V20" stroke="#fff"/></svg></button>
                 `;
             }
 
