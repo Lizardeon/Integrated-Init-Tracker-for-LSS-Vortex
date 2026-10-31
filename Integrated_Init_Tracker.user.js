@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.21.0
+// @version      2.22.0
 // @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
@@ -41,6 +41,48 @@
 
     function saveState() {
         localStorage.setItem('vortex_IITStorage_v2', JSON.stringify(state));
+    }
+
+        /* --- ПЕРСИСТЕНТНЫЕ ДАННЫЕ PC МЕЖДУ БОЯМИ --- */
+    const PLAYER_DATA_KEY = 'vortex_IITPlayerData_v1';
+
+    function loadPlayerDataStore() {
+        try {
+            const raw = localStorage.getItem(PLAYER_DATA_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            console.error('Failed to parse player data store:', e);
+            return {};
+        }
+    }
+
+    function savePlayerDataStore(store) {
+        try {
+            localStorage.setItem(PLAYER_DATA_KEY, JSON.stringify(store));
+        } catch (e) {
+            console.error('Failed to save player data store:', e);
+        }
+    }
+
+    function getPlayerPersistentData(name) {
+        if (!name) return {};
+        return loadPlayerDataStore()[name] || {};
+    }
+
+    function updatePlayerPersistentData(name, updates) {
+        if (!name) return;
+        const store = loadPlayerDataStore();
+        if (!store[name]) store[name] = {};
+        Object.assign(store[name], updates);
+        savePlayerDataStore(store);
+    }
+
+    // Сохраняет актуальный набор кастомных статусов PC в хранилище
+    function persistPCCustomStatuses(p) {
+        if (!p || p.is_monster) return;
+        const systemStatuses = p.system_statuses || [];
+        const custom = (p.statuses || []).filter(st => !systemStatuses.includes(st));
+        updatePlayerPersistentData(p.name, { customStatuses: custom });
     }
 
     function addLogEntry(type, text) {
@@ -919,6 +961,16 @@
         });
 
         if (updated) {
+            const store = loadPlayerDataStore();
+            state.participants.forEach(p => {
+                if (p.is_monster) return;
+                const systemStatuses = p.system_statuses || [];
+                const custom = (p.statuses || []).filter(st => !systemStatuses.includes(st));
+                if (!store[p.name]) store[p.name] = {};
+                store[p.name].customStatuses = custom;
+            });
+            savePlayerDataStore(store);
+
             saveState();
             if (!isSilent) {
                 window.renderTracker();
@@ -1007,10 +1059,18 @@
                         }
                     }
 
+                    const pData = getPlayerPersistentData(p.name);
+                    const sheetStatuses = p.statuses || [];
+                    const customFromStore = (pData.customStatuses || [])
+                        .filter(st => !sheetStatuses.includes(st));
+                    const mergedStatuses = [...sheetStatuses, ...customFromStore];
+
                     selectedParticipants.push({
-                        id: generateId(), name: p.name, initiative: Math.min(99, initVal), ac: Math.min(99, p.ac), description: '',
-                        is_monster: false, avatar: p.avatar, hp_text: p.hp_text, statuses: p.statuses,
-                        system_statuses: p.statuses.slice(),
+                        id: generateId(), name: p.name, initiative: Math.min(99, initVal), ac: Math.min(99, p.ac),
+                        description: pData.description || '',
+                        is_monster: false, avatar: p.avatar, hp_text: p.hp_text,
+                        statuses: mergedStatuses,
+                        system_statuses: (p.statuses || []).slice(),
                         temp_hp: p.temp_hp,
                         total_time_spent: 0,
                         turns_count: 0
@@ -1027,6 +1087,16 @@
             state.is_combat_active = false;
             state.combat_log = [];
             activeStatusInputs = {};
+
+            const storeSync = loadPlayerDataStore();
+            state.participants.forEach(p => {
+                if (p.is_monster) return;
+                const systemStatuses = p.system_statuses || [];
+                const custom = (p.statuses || []).filter(st => !systemStatuses.includes(st));
+                if (!storeSync[p.name]) storeSync[p.name] = {};
+                storeSync[p.name].customStatuses = custom;
+            });
+            savePlayerDataStore(storeSync);
 
             addLogEntry('system', `**Новое столкновение создано.** Загружено игроков: ${selectedParticipants.length}`);
 
@@ -1117,6 +1187,7 @@
             }
         }
         activeStatusInputs[idx] = false;
+        persistPCCustomStatuses(state.participants[idx]);   // NEW
         saveState();
         window.renderTracker();
     };
@@ -1151,6 +1222,7 @@
             if (removed && removed[0]) {
                 addLogEntry('status', `У **${state.participants[idx].name}** удален статус "${removed[0]}"`);
             }
+            persistPCCustomStatuses(state.participants[idx]);
             saveState();
             window.renderTracker();
         }
@@ -1177,9 +1249,16 @@
             if (field === 'initiative') {
                 state.participants.sort((a, b) => b.initiative - a.initiative);
             }
+
+            // NEW: сохраняем заметки PC в персистентное хранилище
+            if (field === 'description' && !state.participants[idx].is_monster) {
+                updatePlayerPersistentData(state.participants[idx].name, { description: value });
+            }
+
             saveState();
         }
     };
+
 
     window.renderTracker = function() {
         const roundDisplay = document.getElementById('dm-round-display');
