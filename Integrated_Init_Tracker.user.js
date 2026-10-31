@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Integrated Init Tracker for LSS Vortex
 // @namespace    http://tampermonkey.net/
-// @version      2.22.0
+// @version      2.22.1
 // @description  Трекер инициативы для LSS Vortex
 // @author       Lizardeon & Gemini
 // @match        https://vortex.longstoryshort.app/room/*
@@ -20,6 +20,7 @@
     /** Ключи localStorage. Меняются только при ломающих миграциях. */
     const STORAGE_KEY_STATE = 'vortex_IITStorage_v2';
     const STORAGE_KEY_PLAYERS = 'vortex_IITPlayerData_v1';
+    const STORAGE_KEY_ACTIVE_TAB = 'vortex_IITActiveTab_v1';
 
     /** Стабильные идентификаторы DOM-узлов, вставляемых в Vortex. */
     const TAB_ID = 'mantine-custom-tab-dmtracker';
@@ -154,8 +155,9 @@
         console.error('[IIT] Не удалось загрузить состояние:', err);
     }
 
-    let activeStatusInputs = {};   // { [idx]: boolean } — открыт ли инпут статуса
+    let activeStatusInputs = {}; // { [idx]: boolean } — открыт ли инпут статуса
     let timerInterval = null;
+    let activeTabRestored = false;
 
     function saveState() {
         try {
@@ -500,6 +502,8 @@
     }
 
     function switchToDmTab() {
+        try { localStorage.setItem(STORAGE_KEY_ACTIVE_TAB, 'dm'); } catch (e) {}
+
         const tabList = document.querySelector('.mantine-Tabs-list');
         if (!tabList) return;
 
@@ -527,6 +531,10 @@
     }
 
     function handleNativeTabClick(clickedTab) {
+        try {
+            if (clickedTab?.id) localStorage.setItem(STORAGE_KEY_ACTIVE_TAB, clickedTab.id);
+        } catch (e) {}
+
         const dmTab = document.getElementById(TAB_ID);
         if (dmTab) {
             dmTab.setAttribute('aria-selected', 'false');
@@ -555,6 +563,12 @@
         ensureDmTab(tabList);
         bindNativeTabListeners(tabList);
         ensureDmPanel();
+
+        // Панель уже в DOM — можно восстанавливать вкладку (один раз за загрузку).
+        if (document.getElementById(PANEL_ID) && !activeTabRestored) {
+            activeTabRestored = true;
+            restoreActiveTab();
+        }
     }
 
     function ensureDmTab(tabList) {
@@ -1429,6 +1443,33 @@
         });
 
         return selected;
+    }
+
+    function restoreActiveTab() {
+        let saved;
+        try { saved = localStorage.getItem(STORAGE_KEY_ACTIVE_TAB); } catch (e) { return; }
+        if (!saved) return;
+
+        if (saved === 'dm') {
+            // Небольшая задержка — даём Mantine завершить первичный рендер,
+            // иначе он может перетереть наши data-active / display.
+            setTimeout(() => {
+                let current;
+                try { current = localStorage.getItem(STORAGE_KEY_ACTIVE_TAB); } catch (e) { return; }
+                // Если пользователь успел кликнуть вкладку в эти 100 мс — уважаем его выбор.
+                if (current === 'dm') switchToDmTab();
+            }, 100);
+            return;
+        }
+
+        // Сохранена нативная вкладка — кликаем по ней.
+        const nativeTab = document.getElementById(saved);
+        if (!nativeTab) return;
+        setTimeout(() => {
+            let current;
+            try { current = localStorage.getItem(STORAGE_KEY_ACTIVE_TAB); } catch (e) { return; }
+            if (current === saved) nativeTab.click();
+        }, 100);
     }
 
     function resetStateForNewEncounter(selectedParticipants) {
